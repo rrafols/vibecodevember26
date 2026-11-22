@@ -1,0 +1,22 @@
+:root { --bg: #060608; --ink: #f1ede6; --accent: #ff4d1a; --mono: ui-monospace, 'SF Mono', Menlo, monospace }
+* { margin: 0; box-sizing: border-box }
+html, body { height: 100%; background: var(--bg); color: var(--ink); font: 11px/1.6 var(--mono); letter-spacing: .22em; text-transform: lowercase }
+body { overflow: hidden }
+a { color: inherit; text-decoration: none }
+canvas { display: block; position: fixed; inset: 0; opacity: 0; transition: opacity 2.5s ease }
+.on canvas { opacity: 1 }
+
+#label, #author { position: fixed; display: flex; flex-direction: column; opacity: .55; pointer-events: none }
+#label { left: 4vmin; bottom: 4vmin }
+#author { right: 4vmin; top: 4vmin }
+#label span:first-child { opacity: .5 }
+
+/* gallery */
+.grid { overflow: auto; height: 100%; padding: 8vmin 4vmin; display: grid; gap: 2px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); align-content: start }
+body:has(.grid) { overflow: auto }
+.grid h1 { grid-column: 1 / -1; font: inherit; opacity: .5; margin-bottom: 4vmin }
+.grid a { position: relative; aspect-ratio: 1; background: #0b0b0e; overflow: hidden }
+.grid video { width: 100%; height: 100%; object-fit: cover; opacity: .7; transition: opacity .6s }
+.grid a:hover video { opacity: 1 }
+.grid b { position: absolute; left: 14px; bottom: 12px; font-weight: 400 }
+.grid a:hover b { color: var(--accent) }

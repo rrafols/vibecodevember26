@@ -1,0 +1,49 @@
+// Bundles every days/NN.js into ONE self-contained file: site/NN.html (three.js + code + css inline, opens from file://).
+// Also writes site/index.html, a gallery of all days.
+//   node scripts/build.mjs               esbuild → terser → deflate → base64, unpacked natively by the browser (~0.05s)
+//   node scripts/build.mjs --roadroller  esbuild → terser → roadroller: ~30% smaller still, but ~6s black screen to decode
+//   node scripts/build.mjs --watch       fast dev rebuilds, plain minified script
+import * as esbuild from 'esbuild'
+import { minify } from 'terser'
+import { deflateRawSync, constants } from 'node:zlib'
+import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
+
+const watch = process.argv.includes('--watch'), rr = process.argv.includes('--roadroller')
+const days = () => readdirSync('days').filter(f => /^\d+\.js$/.test(f)).map(f => f.slice(0, -3)).sort()
+const css = (await esbuild.transform(readFileSync('lib/style.css', 'utf8'), { loader: 'css', minify: true })).code.trim()
+const page = (title, body) => `<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><style>${css}</style>${body}</html>`
+const kb = n => `${(n / 1024).toFixed(0)}K`
+
+const pack = async js => {
+  if (watch) return js
+  js = (await minify(js, { ecma: 2020, compress: { passes: 2 }, mangle: true })).code // no `unsafe`: it breaks three's constructors
+  if (rr) {
+    const { Packer } = await import('roadroller'), p = new Packer([{ data: js, type: 'js', action: 'eval' }], {})
+    await p.optimize(0)
+    const { firstLine, secondLine } = p.makeDecoder()
+    return firstLine + secondLine
+  }
+  const z = deflateRawSync(js, { level: 9, memLevel: 9, strategy: constants.Z_DEFAULT_STRATEGY }).toString('base64')
+  return `fetch("data:;base64,${z}").then(r=>new Response(r.body.pipeThrough(new DecompressionStream("deflate-raw"))).text()).then(s=>(0,eval)(s))`
+}
+
+const write = async r => {
+  if (r.errors.length) return
+  mkdirSync('site', { recursive: true })
+  for (const f of r.outputFiles) {
+    const d = f.path.match(/(\d+)\.js$/)[1], html = page(`vibecodevember ’26 · ${d}`, `<body data-day=${d}><script>${await pack(f.text)}</script>`)
+    writeFileSync(`site/${d}.html`, html)
+    console.log(`  site/${d}.html  ${kb(f.text.length)} → ${kb(html.length)}`)
+  }
+  writeFileSync('site/index.html', page('vibecodevember ’26', `<body><main class=grid><h1>vibecodevember ’26</h1>${days().map(d =>
+    `<a href="${d}.html"><video src="videos/${d}.mp4" poster="videos/${d}.jpg" muted loop playsinline autoplay onerror="this.remove()"></video><b>${d}</b></a>`).join('')}</main>`))
+  console.log(`✓ ${r.outputFiles.length} days → site/   ${pathToFileURL('site/index.html')}`)
+}
+
+const ctx = await esbuild.context({
+  entryPoints: days().map(d => `days/${d}.js`),
+  outdir: 'site', bundle: true, minify: true, legalComments: 'none', format: 'iife', target: 'es2022', write: false, logLevel: 'error',
+  plugins: [{ name: 'html', setup: b => b.onEnd(write) }],
+})
+watch ? (await ctx.watch(), console.log('watching… edit a day, then refresh its page')) : (await ctx.rebuild(), await ctx.dispose())
