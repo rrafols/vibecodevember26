@@ -1,6 +1,6 @@
 # vibecodevember ’26
 
-Daily generative pieces made with [three.js](https://threejs.org) for November 2026, by **bp ^ fzn**.
+Daily generative vibecoded pieces made with [three.js](https://threejs.org) for November 2026, by **bp ^ fzn**.
 
 All the entries share one stage and one mood: a near-black background, bone-white ink, a single ember accent, and the same lighting, bloom, film grain, vignette, camera drift and typography. Each day only adds its own scene on top, so most entries are a few dozen lines of code.
 
