@@ -1,5 +1,6 @@
-// Scaffold a day:  npm run new  (today)   ·   npm run new -- 12
+// Scaffold a day, then build:  npm run new  (today)   ·   npm run new -- 12
 import { existsSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 
 const d = String(process.argv[2] || new Date().getDate()).padStart(2, '0'), f = `days/${d}.js`
 if (existsSync(f)) console.log(`✗ ${f} already exists`), process.exit(1)
@@ -12,4 +13,5 @@ go('untitled', ({ scene }) => {
   return (t, p) => m.rotation.set(p * TAU, p * TAU * 2, 0) // use p (0→1 per loop) for seamless video
 })
 `)
-console.log(`✓ ${f}  →  site/${d}.html`)
+console.log(`✓ ${f}  →  docs/${d}.html`)
+execFileSync(process.execPath, ['scripts/build.mjs'], { stdio: 'inherit' }) // built here, not chained in package.json: npm hands `-- 12` to the last command

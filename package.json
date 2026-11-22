@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
     "build": "node scripts/build.mjs",
-    "new": "node scripts/new.mjs && node scripts/build.mjs",
+    "new": "node scripts/new.mjs",
     "publish": "node scripts/build.mjs && node scripts/record.mjs"
   },
   "devDependencies": {

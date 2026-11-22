@@ -1,5 +1,5 @@
-// Bundles every days/NN.js into ONE self-contained file: site/NN.html (three.js + code + css inline, opens from file://).
-// Also writes site/index.html, a gallery of all days.
+// Bundles every days/NN.js into ONE self-contained file: docs/NN.html (three.js + code + css inline, opens from file://).
+// Also writes docs/index.html, a gallery of all days.
 //   node scripts/build.mjs               esbuild → terser → deflate → base64, unpacked natively by the browser (~0.05s)
 //   node scripts/build.mjs --roadroller  esbuild → terser → roadroller: ~30% smaller still, but ~6s black screen to decode
 //   node scripts/build.mjs --watch       fast dev rebuilds, plain minified script
@@ -30,20 +30,21 @@ const pack = async js => {
 
 const write = async r => {
   if (r.errors.length) return
-  mkdirSync('site', { recursive: true })
+  mkdirSync('docs', { recursive: true })
+  writeFileSync('docs/.nojekyll', '') // GitHub Pages: serve files as-is, no Jekyll
   for (const f of r.outputFiles) {
     const d = f.path.match(/(\d+)\.js$/)[1], html = page(`vibecodevember ’26 · ${d}`, `<body data-day=${d}><script>${await pack(f.text)}</script>`)
-    writeFileSync(`site/${d}.html`, html)
-    console.log(`  site/${d}.html  ${kb(f.text.length)} → ${kb(html.length)}`)
+    writeFileSync(`docs/${d}.html`, html)
+    console.log(`  docs/${d}.html  ${kb(f.text.length)} → ${kb(html.length)}`)
   }
-  writeFileSync('site/index.html', page('vibecodevember ’26', `<body><main class=grid><h1>vibecodevember ’26</h1>${days().map(d =>
+  writeFileSync('docs/index.html', page('vibecodevember ’26', `<body><main class=grid><h1>vibecodevember ’26</h1>${days().map(d =>
     `<a href="${d}.html"><video src="videos/${d}.mp4" poster="videos/${d}.jpg" muted loop playsinline autoplay onerror="this.remove()"></video><b>${d}</b></a>`).join('')}</main>`))
-  console.log(`✓ ${r.outputFiles.length} days → site/   ${pathToFileURL('site/index.html')}`)
+  console.log(`✓ ${r.outputFiles.length} days → docs/   ${pathToFileURL('docs/index.html')}`)
 }
 
 const ctx = await esbuild.context({
   entryPoints: days().map(d => `days/${d}.js`),
-  outdir: 'site', bundle: true, minify: true, legalComments: 'none', format: 'iife', target: 'es2022', write: false, logLevel: 'error',
+  outdir: 'docs', bundle: true, minify: true, legalComments: 'none', format: 'iife', target: 'es2022', write: false, logLevel: 'error',
   plugins: [{ name: 'html', setup: b => b.onEnd(write) }],
 })
 watch ? (await ctx.watch(), console.log('watching… edit a day, then refresh its page')) : (await ctx.rebuild(), await ctx.dispose())
