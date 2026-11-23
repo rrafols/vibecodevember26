@@ -26,7 +26,7 @@ go('filament', ({ scene, camera }) => {
       float d = 0.; glow = 0.;
       for (int i = 0; i < 6; i++) {
         vec3 k = pl[i]; if (k.z <= 0.) continue;
-        float dt = abs(mod(t - k.x + 3.1416, 6.2832) - 3.1416), e = k.z * exp(-k.y * .7) * exp(-pow((dt - k.y * 1.8) * 2.5, 2.));
+        float dt = abs(mod(t - k.x + 3.1416, 6.2832) - 3.1416), e = k.z * exp(-k.y * .7) * exp(-(dt - k.y * 1.8) * (dt - k.y * 1.8) * 6.25);
         d += e * sin(k.y * 30. - dt * 12.);
         glow += e + .4 * k.z * exp(-k.y * 3.) * exp(-dt * dt * 30.);
       }

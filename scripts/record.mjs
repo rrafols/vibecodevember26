@@ -2,6 +2,7 @@
 //   npm run publish                → today's day
 //   npm run publish -- 3 7         → days 03 and 07
 //   options: --size 1080x1920  --fps 60  --seconds 20  (default: exactly one loop → seamless)  --crf 22
+// A day with { blend: s } (stateful sims) is rendered s seconds past the loop and its tail crossfaded into its head → still seamless.
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -38,10 +39,13 @@ for (const d of days) {
   await page.goto(`${pathToFileURL(`docs/${d}.html`)}?record`)
   await page.waitForFunction('window.__ready', { timeout: 60000 })
 
-  const loop = await page.evaluate('window.__loop')
-  const n = Math.round((o.seconds ? +o.seconds : loop) * fps)
+  const [loop, blend] = await page.evaluate('[window.__loop, window.__blend]')
+  const L = Math.round((o.seconds ? +o.seconds : loop) * fps), B = Math.min(Math.round(blend * fps), L >> 1), n = L + B
   const out = `docs/videos/${d}.mp4`
-  const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', fps, '-c:v', 'png', '-i', '-',
+  // body = frames B..L, then the tail (L..L+B) fading into the head (0..B): ends exactly where the body starts
+  const xfade = B ? ['-filter_complex', `[0:v]split=3[a][b][c];[a]trim=start_frame=${B}:end_frame=${L},setpts=PTS-STARTPTS[body];[b]trim=start_frame=${L},setpts=PTS-STARTPTS[tail];` +
+    `[c]trim=end_frame=${B},setpts=PTS-STARTPTS[head];[tail][head]blend=all_expr='A*(1-N/${B})+B*N/${B}'[mix];[body][mix]concat=n=2:v=1[v]`, '-map', '[v]'] : []
+  const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', fps, '-c:v', 'png', '-i', '-', ...xfade,
     '-c:v', 'libx264', '-preset', 'slow', '-crf', o.crf, '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] })
 
   const t0 = Date.now()
@@ -53,7 +57,7 @@ for (const d of days) {
     process.stdout.write(`\r  ${d}  ${'█'.repeat((20 * (i + 1) / n) | 0).padEnd(20, '·')}  ${i + 1}/${n}`)
   }
   ff.stdin.end(), await once(ff, 'close')
-  console.log(`\n✓ ${out}  ${W}×${H} @${fps}  ${(n / fps).toFixed(1)}s  (${((Date.now() - t0) / 1000).toFixed(0)}s)`)
+  console.log(`\n✓ ${out}  ${W}×${H} @${fps}  ${(L / fps).toFixed(1)}s${B ? ' (crossfaded loop)' : ''}  (${((Date.now() - t0) / 1000).toFixed(0)}s)`)
   await page.close()
 }
 

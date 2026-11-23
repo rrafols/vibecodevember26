@@ -13,6 +13,9 @@ Every entry builds to **one self-contained HTML file**, with three.js, shaders, 
 | [<img src="docs/videos/01.jpg" width="220">](docs/videos/01.mp4) | **01 — corona**<br>A star breathing: 200k particles on a noise-warped shell, lit from within. | none |
 | [<img src="docs/videos/02.jpg" width="220">](docs/videos/02.mp4) | **02 — aftershock**<br>A disc of steel rods heated by crossing shockwaves, from ember to white. | move: heat the rods · click: strike a shockwave |
 | [<img src="docs/videos/03.jpg" width="220">](docs/videos/03.mp4) | **03 — filament**<br>3,000 silk fibres braided round a morphing knot, with sparks, embers and plucked vibrations. | move: comb · click: pluck · hold: unravel |
+| [<img src="docs/videos/04.jpg" width="220">](docs/videos/04.mp4) | **04 — event horizon**<br>A black hole, raymarched ray by ray: the disk's far side arches over the shadow, ringed by a hairline photon ring. | drag: tilt · move: a small mass bends the light · click: drop a flare |
+| [<img src="docs/videos/05.jpg" width="220">](docs/videos/05.mp4) | **05 — molten**<br>Dark liquid chrome that merges and pinches apart; every neck glows like a fresh weld. | move: a droplet drags the nearest blob · click: split a blob |
+| [<img src="docs/videos/06.jpg" width="220">](docs/videos/06.mp4) | **06 — veil**<br>A sheer silk veil floating in the void, simulated on the GPU. Pulled too hard it tears; the hole burns open with an ember rim, then closes again. | drag: grab the cloth, yank to tear |
 
 Click a thumbnail for its video. To see an entry live, open `docs/NN.html` in a browser after cloning or downloading the repository; `docs/index.html` is a gallery of all entries.
 
@@ -33,7 +36,7 @@ npm run publish        # build, then record today's video → docs/videos/NN.mp4
 npm run publish -- 3 7 --size 1080x1920 --fps 60 --seconds 20 --crf 22
 ```
 
-Without a day number, `new` and `publish` use today's date.
+Without a day number, `new` and `publish` use today's date. A new entry starts titled `'untitled'`; it's built but kept out of the gallery until you give it a real title.
 
 ## Writing an entry
 
@@ -58,6 +61,7 @@ go('title', ({ scene, camera, renderer }) => {
 | `drift` | `1` | Strength of the slow camera drift and mouse parallax (`0` turns it off) |
 | `bloom` | `0.9` | Bloom strength |
 | `fog` | `0.045` | Exponential fog density |
+| `blend` | `0` | Seconds of crossfade the recorder adds at the loop point. Use it for stateful simulations that can't loop on their own (see day 06) |
 
 | Export | What it is |
 |---|---|
@@ -67,12 +71,15 @@ go('title', ({ scene, camera, renderer }) => {
 | `R` | Seeded random: `R()` gives [0,1), `R(a)` gives [0,a), `R(a, b)` gives [a,b) |
 | `noise` | GLSL 3D simplex noise, `snoise(vec3)`; prepend it to a shader string |
 | `TAU` | 2π |
+| `raymarch(fragmentShader, uniforms)` | A full-screen quad for raymarched scenes. The fragment shader gets `varying vec3 vRay` (the world-space view ray) and `cameraPosition`; discarded pixels show the stage background. See days 04 and 05 |
 | `pointer` | The mouse in normalized device coordinates, for `raycaster.setFromCamera(pointer, camera)`. `pointer.active` turns true once the mouse moves; it never does while recording |
 
 ### Rules for perfect loops
 
 - **Animate with the phase**: `p` in JavaScript, `phase` in GLSL. Use only whole cycles per loop, such as `sin(p * TAU * n)` or a circle through noise space. The default video is exactly one loop long, so it repeats without a seam.
 - **Use `R`, never `Math.random`, `Date` or `performance.now`**, so every render, live or recorded, is identical.
+- **Simulations are the exception.** A day that carries state from frame to frame (like the cloth in day 06) can't return exactly to its first frame. Set `blend` and the recorder renders past the loop and crossfades the end into the start.
+- **Guard against NaN in shaders.** `pow()` of a negative number is NaN, and bloom smears a single NaN pixel over the whole frame, which turns it black. Clamp first, and write squares as `x * x`.
 - **Keep interaction additive.** Mouse effects only apply when `pointer.active` is true, so recordings are unaffected.
 
 ## How it works

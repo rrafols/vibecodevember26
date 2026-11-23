@@ -13,6 +13,7 @@ const watch = process.argv.includes('--watch'), rr = process.argv.includes('--ro
 const days = () => readdirSync('days').filter(f => /^\d+\.js$/.test(f)).map(f => f.slice(0, -3)).sort()
 const css = (await esbuild.transform(readFileSync('lib/style.css', 'utf8'), { loader: 'css', minify: true })).code.trim()
 const page = (title, body) => `<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><style>${css}</style>${body}</html>`
+const draft = d => /go\(\s*['"]untitled['"]/.test(readFileSync(`days/${d}.js`, 'utf8')) // still titled 'untitled' → built, but kept out of the gallery
 const kb = n => `${(n / 1024).toFixed(0)}K`
 
 const pack = async js => {
@@ -37,7 +38,7 @@ const write = async r => {
     writeFileSync(`docs/${d}.html`, html)
     console.log(`  docs/${d}.html  ${kb(f.text.length)} → ${kb(html.length)}`)
   }
-  writeFileSync('docs/index.html', page('vibecodevember ’26', `<body><main class=grid><h1>vibecodevember ’26</h1>${days().map(d =>
+  writeFileSync('docs/index.html', page('vibecodevember ’26', `<body><main class=grid><h1>vibecodevember ’26</h1>${days().filter(d => !draft(d)).map(d =>
     `<a href="${d}.html"><video src="videos/${d}.mp4" poster="videos/${d}.jpg" muted loop playsinline autoplay onerror="this.remove()"></video><b>${d}</b></a>`).join('')}</main>`))
   console.log(`✓ ${r.outputFiles.length} days → docs/   ${pathToFileURL('docs/index.html')}`)
 }
