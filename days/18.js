@@ -5,12 +5,12 @@ import { go, THREE, U, R, TAU, pointer, raymarch } from '../lib/stage.js'
 // reflects the studio, the other beads and the glass, and the glass reflects them back.
 // hover: tilt the dish · click: strike it · hold and drag: run a finger through them
 go('mercury', ({ scene, camera }) => {
-  const M = 40, DISH = 2.4, LOOP = 16, SQ = 0.72
-  const D = Array.from({ length: M }, () => ({ p: new THREE.Vector2(), v: new THREE.Vector2(), r: 0, cool: 0 }))
+  const M = 56, DISH = 2.4, LOOP = 16, SQ = 0.72
+  const D = Array.from({ length: M }, () => ({ p: new THREE.Vector2(), v: new THREE.Vector2(), r: 0, cool: 0, swell: 0 }))
   for (let i = 0; i < 30; i++) { const a = R(TAU), d = R(0.3, 1.9); D[i].p.set(Math.cos(a) * d, Math.sin(a) * d), (D[i].r = R(0.08, 0.22)) }
-  const u = { ...U, drops: { value: Array.from({ length: M }, () => new THREE.Vector4()) }, rot: { value: new THREE.Matrix3() } }
+  const u = { ...U, drops: { value: Array.from({ length: M }, () => new THREE.Vector4()) }, rot: { value: new THREE.Matrix3() }, shock: { value: new THREE.Vector4(0, 0, -99, 0) }, now: { value: 0 } }
   const mesh = raymarch(`
-    uniform vec4 drops[${M}]; uniform mat3 rot; uniform vec3 ink, accent; uniform float phase; varying vec3 vRay;
+    uniform vec4 drops[${M}], shock; uniform mat3 rot; uniform vec3 ink, accent; uniform float phase, now; varying vec3 vRay;
     float smin(float a, float b, float k){ float h = clamp(.5 + .5 * (b - a) / k, 0., 1.); return mix(b, a, h) - k * h * (1. - h); }
     float beads(vec3 p){
       float d = 1e3;
@@ -55,6 +55,8 @@ go('mercury', ({ scene, camera }) => {
         vec3 r = reflect(rd, vec3(0., 1., 0.)), q; float bead = float(trace(p + vec3(0., .002, 0.), r, q) == 1);
         c = vec3(.002) + bounce(p + vec3(0., .002, 0.), r) * mix(.04, .5, F) * mix(.6, 7., bead) * .5 * (.5 + .5 * occ); // dim studio, clear bead reflections
         c += ink * .05 * smoothstep(${DISH - 0.03}, ${DISH}, length(p.xz));
+        float age = now - shock.z, ring = exp(-pow((length(p.xz - shock.xy) - age * 3.2) * 9., 2.)) * exp(-age * 2.2) * shock.w * step(0., age); // the blow's shockwave racing over the glass
+        c += (accent * .9 + ink * .35 * exp(-age * 6.)) * ring + accent * .5 * exp(-length(p.xz - shock.xy) * 6.) * exp(-age * 7.) * shock.w * step(0., age);
       } else discard;
       gl_FragColor = vec4(c, 1.);
     }`, u)
@@ -63,26 +65,31 @@ go('mercury', ({ scene, camera }) => {
   const finger = { on: false, p: new THREE.Vector2(), last: new THREE.Vector2(), v: new THREE.Vector2() }
   let down = null, now = 0
   const free = () => D.find(d => d.r <= 0)
-  const strike = (c, power) => { // everything near the blow splinters and is thrown outward
-    for (const d of D.filter(d => d.r > 0.07 && d.p.distanceTo(c) < 1 + d.r)) {
-      const n = Math.min(5, Math.max(2, Math.round((d.r / 0.09) * power))), pieces = [d]
-      for (let k = 1; k < n; k++) { const f = free(); if (f) pieces.push(f) }
-      const r = d.r / Math.cbrt(pieces.length), base = d.p.clone(), out = d.p.clone().sub(c)
-      const a0 = out.lengthSq() > 1e-4 ? Math.atan2(out.y, out.x) : R(TAU)
+  const strike = (c, power, reach = 1) => { // everything near the blow splinters and is thrown outward; volume is conserved exactly
+    u.shock.value.set(c.x, c.y, now, Math.min(1.5, power * 0.6))
+    for (const d of D.filter(d => d.r > 0.06 && d.p.distanceTo(c) < reach + d.r)) {
+      const want = Math.min(power > 1.5 ? 9 : 5, Math.max(2, Math.round((d.r / 0.07) * power))), pieces = [d]
+      for (const f of D) { if (pieces.length >= want) break; if (f.r <= 0 && !pieces.includes(f)) pieces.push(f) } // distinct free slots only
+      // a main blob and smaller satellites, like a real splash
+      const w = pieces.map((_, k) => (k === 0 ? 2.2 : R(0.25, 1))), W = w.reduce((a, b) => a + b, 0), vol = d.r ** 3
+      const base = d.p.clone(), v0 = d.v.clone(), out = d.p.clone().sub(c), dist = out.length(), a0 = dist > 1e-2 ? Math.atan2(out.y, out.x) : R(TAU)
       pieces.forEach((q, k) => {
-        const a = a0 + ((k / pieces.length) - 0.5) * 2.4 + R(-0.3, 0.3), s = (1.2 + R(1.4)) * power / (0.6 + d.p.distanceTo(c))
-        q.p.set(base.x + Math.cos(a) * r * 1.3, base.y + Math.sin(a) * r * 1.3), q.v.set(Math.cos(a) * s, Math.sin(a) * s), (q.r = r), (q.cool = 0.6)
+        const r = Math.cbrt((vol * w[k]) / W), a = k === 0 ? a0 : a0 + ((k - 1) / (pieces.length - 1) - 0.5) * (dist > 0.15 ? 2.6 : TAU) + R(-0.25, 0.25)
+        const s = (k === 0 ? 0.5 : 1.6 + R(1.6) * (1 - w[k] / 2)) * power / (0.7 + dist), off = k === 0 ? 0 : d.r * 0.75
+        q.p.set(base.x + Math.cos(a) * off, base.y + Math.sin(a) * off), q.v.set(v0.x + Math.cos(a) * s, v0.y + Math.sin(a) * s), (q.r = r), (q.cool = 0.45 + R(0.35)), (q.swell = 0)
       })
     }
   }
+
   const onDish = () => { // the cursor on the dish, in the dish's frame
     ray.setFromCamera(pointer, camera)
     O.copy(ray.ray.origin).applyMatrix3(u.rot.value), Dir.copy(ray.ray.direction).applyMatrix3(u.rot.value)
     if (Dir.y >= 0) return null
     const t = -O.y / Dir.y; return new THREE.Vector2(O.x + Dir.x * t, O.z + Dir.z * t)
   }
-  addEventListener('pointerdown', () => (down = { at: now, moved: 0 }))
-  addEventListener('pointerup', () => { if (down && down.moved < 0.08 && now - down.at < 0.35) { const c = onDish(); if (c) strike(c, 1.3) } down = null, (finger.on = false) })
+  addEventListener('pointerdown', () => { down = { at: now, moved: 0 }; const c = onDish(); if (c) finger.last.copy(c), finger.p.copy(c) }) // measure movement from here, not from the last drag
+  const bursts = [] // your blows: the beads near it swell for a moment, then burst
+  addEventListener('pointerup', () => { if (down && down.moved < 0.08 && now - down.at < 0.35) { const c = onDish(); if (c) { D.forEach(d => d.r > 0 && d.p.distanceTo(c) < 1.5 + d.r && (d.swell = 1e-3)); bursts.push({ c, at: now + 0.22 }) } } down = null, (finger.on = false) })
   const strikes = [[0.12, 0.9, -0.4], [0.47, -0.8, 0.6], [0.78, 0.2, 0.9]] // the loop's own blows: phase, x, z
   let lastP = 0
 
@@ -118,9 +125,12 @@ go('mercury', ({ scene, camera }) => {
     g.set(tilt.x, tilt.y).multiplyScalar(6)                                                  // tilt = which way is downhill
     M3.makeRotationFromEuler(E.set(-tilt.y, 0, tilt.x)), u.rot.value.setFromMatrix4(M3)
     if (down) { const c = onDish(); if (c) { down.moved += c.distanceTo(finger.last); finger.v.copy(c).sub(finger.last).divideScalar(dt || 1 / 60), finger.p.copy(c), finger.last.copy(c), (finger.on = now - down.at > 0.12) } }
+    for (let i = bursts.length - 1; i >= 0; i--) if (now >= bursts[i].at) { D.forEach(d => (d.swell = 0)); strike(bursts[i].c, 2.4, 1.6), bursts.splice(i, 1) }
+    D.forEach(d => d.swell > 0 && (d.swell = Math.min(1, d.swell + dt / 0.22)))
+    u.now.value = now
     for (const [at, x, z] of strikes) if ((lastP < at && p >= at) || (lastP > p && at <= p)) strike(new THREE.Vector2(x, z), 1)
     lastP = p
     for (let s = 0; s < 2; s++) step(dt / 2)
-    D.forEach((d, i) => u.drops.value[i].set(d.p.x, d.r * Math.min(SQ, 0.17 / Math.max(d.r, 1e-3)) * 0.72, d.p.y, d.r))
+    D.forEach((d, i) => { const r = d.r * (1 + 0.12 * d.swell * d.swell + 0.05 * d.swell * Math.sin(now * 90)); u.drops.value[i].set(d.p.x, r * Math.min(SQ, 0.17 / Math.max(r, 1e-3)) * 0.72, d.p.y, r) }) // swelling beads quiver
   }
 }, { loop: 16, blend: 2, eye: [0, 5.2, 6.4], drift: 0.3, bloom: 0.55, dpr: 1, parallax: 0, poster: 0.1 })

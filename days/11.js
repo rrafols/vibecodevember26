@@ -1,7 +1,8 @@
 import { go, THREE, U, R, TAU, pointer } from '../lib/stage.js'
 
 // 11 — meander: differential growth. A closed line of light keeps growing but may never cross itself, so it buckles and folds
-// into an ever finer labyrinth, like brain coral or a river delta. New growth burns ember, older line cools to bone.
+// into an ever finer labyrinth, like brain coral or a river delta. New growth burns ember, older line cools to bone; sparks race
+// along it both ways and light breathes through it.
 // click: plant a new seed · drag: carve a channel through it
 go('meander', ({ scene, camera }) => {
   const LOOP = 16, MAXN = 8500, L = 0.02, RAD = 0.045, BOUND = 1.5, SUB = 3
@@ -48,30 +49,36 @@ go('meander', ({ scene, camera }) => {
   }
 
   // ── drawn as a ribbon (a 1px line would vanish), coloured by age: ember at the growing edge, bone where it has settled ──
-  const pos = new Float32Array(MAXN * 4 * 3), age = new Float32Array(MAXN * 4), idx = new Uint32Array(MAXN * 6 * 2)
-  const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)).setAttribute('age', new THREE.BufferAttribute(age, 1)).setIndex(new THREE.BufferAttribute(idx, 1))
+  const pos = new Float32Array(MAXN * 4 * 3), age = new Float32Array(MAXN * 4), arc = new Float32Array(MAXN * 4), idx = new Uint32Array(MAXN * 6 * 2)
+  const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)).setAttribute('age', new THREE.BufferAttribute(age, 1)).setAttribute('arc', new THREE.BufferAttribute(arc, 1)).setIndex(new THREE.BufferAttribute(idx, 1))
   const ru = { ...U, life: { value: 1 } }
   const ribbon = new THREE.Mesh(geo, new THREE.ShaderMaterial({
     uniforms: ru, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-    vertexShader: `attribute float age; varying float vA; void main(){ vA = age; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-    fragmentShader: `uniform vec3 ink, accent; uniform float life; varying float vA;
-      void main(){ float hot = exp(-vA * 1.6); gl_FragColor = vec4((ink * .24 + mix(accent * .9, ink * 1.6, hot * hot) * hot) * life, 1.); }`,
+    vertexShader: `attribute float age, arc; varying float vA, vS; void main(){ vA = age, vS = arc; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `uniform vec3 ink, accent; uniform float life, phase; varying float vA, vS;
+      void main(){
+        float hot = exp(-vA * 1.6), wave = .5 + .5 * sin(vS * 9. - phase * 6.2832 * 10.);       // light breathing along the line
+        float a = fract(vS * .55 - phase * 7.), b = fract(-vS * .4 - phase * 9. + .37);       // sparks racing both ways, as in 03
+        float sp = pow(a, 50.) + pow(b, 70.) * .8 + pow(a, 8.) * .08;
+        vec3 c = ink * .2 * (.55 + .45 * wave) + mix(accent * .9, ink * 1.6, hot * hot) * hot + mix(accent * 2.2, ink * 3.5, sp * sp) * sp;
+        gl_FragColor = vec4(c * life, 1.);
+      }`,
   }))
   ribbon.frustumCulled = false, ribbon.rotation.x = -0.55, scene.add(ribbon) // a slight tilt: a plate seen from above, not a diagram
   const build = () => {
     let v = 0, k = 0
     for (const c of curves) {
-      const n = c.length, v0 = v
+      const n = c.length, v0 = v; let s = 0
       for (let i = 0; i < n; i++) {
         const a = c[(i - 1 + n) % n], b = c[(i + 1) % n], p = c[i]
         let tx = b.x - a.x, ty = b.y - a.y; const tl = Math.hypot(tx, ty) || 1, w = 0.0032 + 0.003 * Math.exp(-(now - p.b) * 0.9) // fresh growth is a touch thicker
         tx /= tl, ty /= tl
-        pos.set([p.x - ty * w, p.y + tx * w, 0, p.x + ty * w, p.y - tx * w, 0], v * 3), (age[v] = age[v + 1] = now - p.b)
+        pos.set([p.x - ty * w, p.y + tx * w, 0, p.x + ty * w, p.y - tx * w, 0], v * 3), (age[v] = age[v + 1] = now - p.b), (arc[v] = arc[v + 1] = s), (s += Math.hypot(b.x - p.x, b.y - p.y))
         const j = v0 + ((i + 1) % n) * 2
         idx.set([v, v + 1, j, v + 1, j + 1, j], k), (k += 6), (v += 2)
       }
     }
-    geo.setDrawRange(0, k), (geo.attributes.position.needsUpdate = geo.attributes.age.needsUpdate = geo.index.needsUpdate = true)
+    geo.setDrawRange(0, k), (geo.attributes.position.needsUpdate = geo.attributes.age.needsUpdate = geo.attributes.arc.needsUpdate = geo.index.needsUpdate = true)
   }
 
   // ── each loop grows from a seed and fades before the wrap · you can plant more seeds and carve with a finger ──
