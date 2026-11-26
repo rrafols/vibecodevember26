@@ -1,10 +1,10 @@
 import { go, THREE, U, R, TAU, pointer, raymarch } from '../lib/stage.js'
 
 // 08 — cathedral: an endless nave through an infinite Menger sponge. Bone-grey stone, deep shadow, ember light hanging in the
-// haze. The fractal repeats along the nave and the camera travels exactly one bay per loop, so it never ends.
-// move: look around · click: release a light that drifts down the nave · scroll: reshape the architecture
+// haze. The fractal repeats along the nave and the camera glides exactly two bays per loop, so it never ends.
+// move: look around · click: fire a light deep down the nave · scroll: reshape the architecture
 go('cathedral', ({ scene, camera }) => {
-  const LOOP = 20, BAY = 4, NO = 6
+  const LOOP = 30, BAY = 4, SPAN = BAY * 2, NO = 8 // two bays per 30s loop: a slow, steady glide
   const u = { ...U, scale: { value: 0.32 }, orb: { value: Array.from({ length: NO }, () => new THREE.Vector4()) } }
   const quad = raymarch(`
     uniform float scale, phase, time; uniform vec3 ink, accent; uniform vec4 orb[${NO}]; varying vec3 vRay;
@@ -50,29 +50,34 @@ go('cathedral', ({ scene, camera }) => {
     }`, u)
   scene.add(quad)
 
-  // lights: four drift down the nave on their own (one bay per loop, so the loop is seamless) · plus up to two you release
-  const auto = Array.from({ length: 4 }, (_, k) => ({ z: -k * BAY * 0.75 - 1.5, x: R(-0.35, 0.35), y: R(-0.3, 0.3), w: R(0.5, 0.8), ph: R(TAU) }))
-  const mine = []
+  // lights: four hang along the nave, repeating every two bays like the stone, so the loop is seamless · plus up to four you fire
+  const auto = Array.from({ length: 4 }, (_, k) => ({ z: -k * 2 - 1, x: R(-0.35, 0.35), y: R(-0.3, 0.3), w: R(0.5, 0.8), ph: R(TAU) }))
+  const mine = [], ray = new THREE.Raycaster(), D = new THREE.Vector3()
   let now = 0, yaw = 0, pitch = 0, sc = 0.32
-  addEventListener('pointerdown', () => mine.push({ t: now, z: camera.position.z - 1.6, x: camera.position.x + pointer.x * 0.5, y: camera.position.y + pointer.y * 0.4 }), mine.length > 2 && mine.shift())
+  addEventListener('pointerdown', () => {
+    ray.setFromCamera(pointer, camera), D.copy(ray.ray.direction), (D.x *= 0.35), (D.y *= 0.35), D.normalize() // aimed at the cursor, held to the nave
+    mine.push({ t: now, o: camera.position.clone().addScaledVector(D, 0.9), d: D.clone() }), mine.length > 4 && mine.shift()
+  })
   addEventListener('wheel', e => (sc = THREE.MathUtils.clamp(sc + e.deltaY * 0.0005, 0, 0.7)), { passive: true })
 
   return (t, p) => {
     now = t
-    const a = p * TAU, z = -p * BAY * 3 // three bays per loop
-    camera.position.set(Math.sin(a) * 0.18, Math.sin(2 * a) * 0.1, z)
-    yaw += ((pointer.active ? -pointer.x * 0.9 : 0) - yaw) * 0.05, (pitch += ((pointer.active ? pointer.y * 0.5 : 0) - pitch) * 0.05)
-    camera.lookAt(camera.position.x + Math.sin(yaw + Math.sin(a) * 0.12), camera.position.y + Math.sin(pitch) - 0.02, z - Math.cos(yaw))
+    const a = p * TAU, z = -p * SPAN
+    camera.position.set(Math.sin(a) * 0.07, Math.sin(2 * a) * 0.035, z) // barely a drift
+    yaw += ((pointer.active ? pointer.x * 0.45 : 0) - yaw) * 0.025, (pitch += ((pointer.active ? pointer.y * 0.25 : 0) - pitch) * 0.025) // slow, gentle look
+    camera.lookAt(camera.position.x + Math.sin(yaw), camera.position.y + Math.sin(pitch) - 0.02, z - Math.cos(yaw))
     u.scale.value += (sc - u.scale.value) * 0.05
     const O = u.orb.value
     auto.forEach((o, k) => { // each auto light keeps its place in the repeating nave, so it scrolls past exactly like the stone does
-      const oz = z + ((((o.z - z) % (BAY * 3)) - BAY * 3) % (BAY * 3)) - 0.3, ahead = z - oz
-      const near = THREE.MathUtils.smoothstep(ahead, 0.3, 2.6) * THREE.MathUtils.smoothstep(-ahead, -12.3, -9.5) // fade out before it reaches us, in at the far end
-      O[k].set(o.x + Math.sin(a * 2 + o.ph) * 0.15, o.y + Math.sin(a + o.ph) * 0.1, oz, o.w * near * (0.85 + 0.15 * Math.sin(a * 3 + o.ph)))
+      const oz = z + ((((o.z - z) % SPAN) - SPAN) % SPAN) - 0.3, ahead = z - oz
+      const near = THREE.MathUtils.smoothstep(ahead, 0.3, 2.4) * THREE.MathUtils.smoothstep(-ahead, -SPAN - 0.3, -SPAN + 2) // fade out before it reaches us, in at the far end
+      O[k].set(o.x + Math.sin(a + o.ph) * 0.08, o.y + Math.sin(a + o.ph) * 0.05, oz, o.w * near * (0.85 + 0.15 * Math.sin(a * 3 + o.ph)))
     })
-    for (let k = 0; k < 2; k++) {
+    for (let k = 0; k < 4; k++) { // fired lights race away into the deep, lighting the stone as they pass, and sink into the haze
       const m = mine[k], age = m ? t - m.t : 99
-      m && age < 14 ? O[4 + k].set(m.x, m.y, m.z - age * 0.9, Math.min(1, age * 2) * Math.max(0, 1 - age / 14) * 1.4 * THREE.MathUtils.smoothstep(z - (m.z - age * 0.9), 0.4, 1.6)) : O[4 + k].set(0, 0, 0, 0)
+      if (!m || age > 7) { O[4 + k].set(0, 0, 0, 0); continue }
+      const q = m.o.clone().addScaledVector(m.d, age * 5.5 + age * age * 0.4)
+      O[4 + k].set(q.x, q.y, q.z, 1.6 * Math.min(1, age * 4) * Math.min(1, (7 - age) / 2) * THREE.MathUtils.smoothstep(camera.position.distanceTo(q), 0.5, 1.4))
     }
   }
-}, { loop: 20, drift: 0, bloom: 0.7 })
+}, { loop: 30, drift: 0, bloom: 0.7 })
