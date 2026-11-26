@@ -9,11 +9,11 @@ import { go, THREE, U, R, TAU, pointer, raymarch } from '../lib/stage.js'
 // drag: turn it · hover: move the light · click: break the piece under the cursor
 go('relic', ({ scene, camera }) => {
   const LOOP = 16, NP = 10, NPL = 7
-  const u = { ...U, rot: { value: new THREE.Matrix3() }, light: { value: new THREE.Vector2(0.4, 0.8) }, flare: { value: 0 }, open: { value: 0 },
+  const u = { ...U, rot: { value: new THREE.Matrix3() }, light: { value: new THREE.Vector2(0.4, 0.8) }, flare: { value: 0 }, open: { value: 0 }, cutW: { value: 1 }, cutI: { value: 1 }, disp: { value: 1 },
     pl: { value: Array.from({ length: NPL }, () => new THREE.Vector4()) }, po: { value: Array.from({ length: NP }, () => new THREE.Vector4()) },
     pb: { value: Array.from({ length: NP }, () => new THREE.Vector4()) }, ps: { value: new Float32Array(NP * NPL) }, pr: { value: Array.from({ length: NP }, () => new THREE.Matrix3()) } }
   scene.add(raymarch(`
-    uniform mat3 rot, pr[${NP}]; uniform vec2 light; uniform float flare, open, ps[${NP * NPL}]; uniform vec4 pl[${NPL}], po[${NP}], pb[${NP}]; uniform vec3 ink, accent; varying vec3 vRay;
+    uniform mat3 rot, pr[${NP}]; uniform vec2 light; uniform float flare, open, cutW, cutI, disp, ps[${NP * NPL}]; uniform vec4 pl[${NPL}], po[${NP}], pb[${NP}]; uniform vec3 ink, accent; varying vec3 vRay;
     float gem0(vec3 p){                                    // a hexagonal column, barely twisted, with long pointed tips
       float d = -1e9;
       for (int i = 0; i < 6; i++) { float a = float(i) * 1.0472 + p.y * .1; d = max(d, dot(p.xz, vec2(cos(a), sin(a))) - .58); }
@@ -22,16 +22,16 @@ go('relic', ({ scene, camera }) => {
       return d;
     }
     float gem(vec3 p){ return gem0(p * 1.45) / 1.45; } // sized to sit in frame, tips and all
-    float rough = 1.;                                      // full roughness for the surface we see, less for rays inside (no speckle)
+    float rough = 1., cw = 1.;                             // cw: how much the breaks count (the outline melts late, the light inside early)                                      // full roughness for the surface we see, less for rays inside (no speckle)
     float brk(int k, vec3 q){                              // a fracture: a plane made rough and wavy; one surface for both sides, so they mate
       vec4 P = pl[k]; vec3 s = q * 1.7 + float(k) * 4.1;
-      float r = sin(dot(s, vec3(7.1, 9.3, 5.7))) * .5 + sin(dot(s, vec3(-13.7, 6.1, 11.3)) + 1.3) * .25 + sin(dot(s, vec3(23.1, -19.7, 17.3)) + 2.1) * .12 + sin(dot(s, vec3(-41., 37., 29.)) + .7) * .05;
+      float r = sin(dot(s, vec3(7.1, 9.3, 5.7))) * .5 + sin(dot(s, vec3(-13.7, 6.1, 11.3)) + 1.3) * .25 + sin(dot(s, vec3(23.1, -19.7, 17.3)) + 2.1) * .08; // slope ≤ ~1.85: stepped at .5 below
       return dot(P.xyz, q) - P.w + r * .035 * rough;
     }
     float piece(int i, vec3 p, out vec3 q){
-      q = pr[i] * (p - po[i].xyz); float d = gem(q);
-      for (int k = 0; k < ${NPL}; k++) { float sg = ps[i * ${NPL} + k]; if (sg != 0.) d = max(d, -sg * brk(k, q) * .7); }
-      return d;
+      q = pr[i] * (p - po[i].xyz); float d0 = gem(q), d = d0;
+      for (int k = 0; k < ${NPL}; k++) { float sg = ps[i * ${NPL} + k]; if (sg != 0.) d = max(d, -sg * brk(k, q) * .5); }
+      return mix(d0, d, cw);                              // as the pieces come home the breaks melt away: no last-moment gaps
     }
     float scene(vec3 p, out vec3 qb, out int id){
       float best = 1e9; qb = p; id = 0;
@@ -48,39 +48,49 @@ go('relic', ({ scene, camera }) => {
       float g = 1e9; for (int k = 0; k < ${NPL}; k++) if (ps[i * ${NPL} + k] != 0.) g = min(g, abs(brk(k, q)));
       return exp(-g * w);
     }
-    vec3 nrm(vec3 p){ vec2 e = vec2(.001, -.001); return normalize(e.xyy * sc(p + e.xyy) + e.yyx * sc(p + e.yyx) + e.yxy * sc(p + e.yxy) + e.xxx * sc(p + e.xxx)); }
+    vec3 nrm(vec3 p){ vec2 e = vec2(.0015, -.0015); return normalize(e.xyy * sc(p + e.xyy) + e.yyx * sc(p + e.yyx) + e.yxy * sc(p + e.yxy) + e.xxx * sc(p + e.xxx)); }
+    float pc(int i, vec3 p){ vec3 q; return piece(i, p, q); }
+    vec3 nrmP(int i, vec3 p){ vec2 e = vec2(.0015, -.0015); return normalize(e.xyy * pc(i, p + e.xyy) + e.yyx * pc(i, p + e.yyx) + e.yxy * pc(i, p + e.yxy) + e.xxx * pc(i, p + e.xxx)); }
     vec3 env(vec3 d){                                     // a dark studio: a key softbox you can move, a horizon hairline, an ember panel
       vec3 k = normalize(vec3(cos(light.x) * cos(light.y), sin(light.y), sin(light.x) * cos(light.y)));
       return ink * (smoothstep(.93, .99, dot(d, k)) * 2.6 + smoothstep(.95, .995, dot(d, normalize(vec3(-.8, .5, .4)))) * 1.4 + exp(-pow(d.y * 14., 2.)) * .035) // key + back rim + horizon
            + accent * smoothstep(.93, .99, dot(d, normalize(vec3(-.7, -.25, -.6)))) * 1.6;
     }
     vec3 heart(vec3 q){ float r2 = dot(q, q); return (accent * 1.3 * exp(-r2 * 22.) + ink * 2.5 * exp(-r2 * 260.)) * (1. + flare * 2.5) * (1. - open * .45); }
-    vec3 through(vec3 p, vec3 d, float ior){              // inside the crystal: march to a face, refract out or reflect back (TIR)
-      vec3 glow = vec3(0.); rough = .25;
+    vec3 through0(vec3 p, vec3 d, float ior, int id, float ci){ // inside one piece: march to its face, refract out or reflect back (TIR); cracks don't act as mirrors
+      vec3 glow = vec3(0.); rough = 0.; cw = ci;
       for (int b = 0; b < 3; b++) {
         float t = .02;
-        for (int i = 0; i < 40; i++) { vec3 q = p + d * t, qb; int id; float h = -scene(q, qb, id); glow += heart(qb) * .054; if (h < .001) break; t += clamp(h, .025, .1); }
-        p += d * t; vec3 n = nrm(p), o = refract(d, -n, ior);
-        if (dot(o, o) > 0.) { rough = 1.; return glow + env(o) * vec3(1., .96, .92) * .9; }
+        for (int i = 0; i < 40; i++) { vec3 qb; float h = -piece(id, p + d * t, qb); glow += heart(qb) * .054; if (h < .001) break; t += clamp(h * .5, .02, .1); }
+        p += d * t; vec3 n = nrmP(id, p), o = refract(d, -n, ior);
+        if (dot(o, o) > 0.) { rough = 1., cw = cutW; return glow + env(o) * vec3(1., .96, .92) * .9; }
         d = reflect(d, -n), p += d * .003;
       }
-      rough = 1.; return glow;
+      rough = 1., cw = cutW; return glow;
+    }
+    vec3 through(vec3 p, vec3 d, float ior, int id){        // while it fuses: the broken and the whole light, cross-faded (blending the shapes would jump)
+      if (cutI >= 1.) return through0(p, d, ior, id, 1.);
+      if (cutI <= 0.) return through0(p, d, ior, id, 0.);
+      return mix(through0(p, d, ior, id, 0.), through0(p, d, ior, id, 1.), cutI);
     }
     void main(){
-      vec3 ro = rot * cameraPosition, rd = rot * normalize(vRay);
+      vec3 ro = rot * cameraPosition, rd = rot * normalize(vRay); cw = cutW;
       float t = 0., h = 1.;
-      for (int i = 0; i < 140; i++) { h = sc(ro + rd * t); if (h < .001 || t > 20.) break; t += h * .85; }
+      int steps = open > 0. || po[1].w > .5 ? 200 : 110;
+      for (int i = 0; i < 200; i++) { if (i >= steps) break; h = sc(ro + rd * t); if (h < .001 || t > 20.) break; t += h * .9; }
       if (t > 20. || h > .006) discard;                    // never reached a surface (e.g. down the gap of a break): see through
       vec3 p = ro + rd * t, n = nrm(p), qb; int id; scene(p, qb, id);
       float face = near(qb, id, 40.) * open, seam = near(qb, id, 120.) * exp(-abs(gem(qb)) * 70.) * open;
       // micro-fractures: a web of fine lines on the skin, densest by the breaks
-      vec3 w = qb * 9.; float web = sin(w.x + sin(w.y * 1.3 + w.z)) * sin(w.y * 1.1 + sin(w.z * 1.7 + w.x)) * sin(w.z * .9 + sin(w.x * 1.5 - w.y));
-      float craze = exp(-abs(web) * 60.) * near(qb, id, 22.) * open;
+      vec3 w = qb * 7.; float web = sin(w.x * 1.13 + 1.7 * sin(w.y * .71 + w.z * 1.31)) + sin(w.y * .87 - 1.9 * sin(w.z * .53 - w.x * .97) + 1.1) + sin(w.z * 1.29 + 1.5 * sin(w.x * .61 + w.y * 1.17) + 2.3); // irregular, not a lattice
+      float craze = exp(-abs(web) * 28.) * near(qb, id, 22.) * open;
       float F = .04 + .96 * pow(1. - max(dot(-rd, n), 0.), 5.);
-      vec3 r = through(p - n * .003, refract(rd, n, 1. / 1.57), 1.57), b = open > .01 ? r : through(p - n * .003, refract(rd, n, 1. / 1.62), 1.62); // dispersion (whole only: broken, it is too busy to see, and costly)
+      float fz = clamp(face * 1.5, 0., 1.);
+      rough = 0.; vec3 nS = nrm(p); rough = 1.; vec3 nr = normalize(mix(n, nS, fz)); // light passes a frosted break diffusely, not through a lens of ripples
+      vec3 r = through(p - n * .003, refract(rd, nr, 1. / 1.57), 1.57, id), b = disp > 0. ? through(p - n * .003, refract(rd, nr, 1. / mix(1.57, 1.62, disp)), mix(1.57, 1.62, disp), id) : r; // dispersion (whole only: broken, it is too busy to see, and costly)
       vec3 m = (r + b) * .5, tr = mix(m, vec3(r.r, m.g, b.b), .45);
-      vec3 c = env(reflect(rd, n)) * F + tr * (1. - F);
-      c = mix(c, c * .14 + ink * .035 + m * .04, clamp(face, 0., 1.));   // broken faces: frosted, dull
+      vec3 c = env(reflect(rd, n)) * F * (1. - fz) + tr * (1. - F);         // broken faces don't mirror the lights …
+      c = mix(c, c * .14 + ink * .035 + m * .04, fz);                      // … they are frosted and dull
       c += accent * seam * .9 + ink * seam * seam * .3 + (accent * .22 + ink * .05) * craze; // the seam, and the crazing round it
       gl_FragColor = vec4(c, 1.);
     }`, u))
@@ -157,10 +167,13 @@ go('relic', ({ scene, camera }) => {
     for (let i = queue.length - 1; i >= 0; i--) if (now >= queue[i].at) { const { pc } = queue[i]; queue.splice(i, 1); if (pieces.includes(pc)) split(pc, new THREE.Vector3(R(-1, 1), R(-1, 1), R(-1, 1)).normalize()) }
     // a few seconds after the last blow the pieces drift home and fuse
     if (pieces.length > 1 && now - lastHit > 3) (healing = true), pieces.forEach(pc => (pc.to.set(0, 0, 0), (pc.angTo = 0)))
-    let far = 0
-    pieces.forEach(pc => { const k = 1 - Math.exp(-dt * (healing ? 2.6 : 6)); pc.off.lerp(pc.to, k), (pc.ang += (pc.angTo - pc.ang) * k), (far = Math.max(far, pc.off.length() + Math.abs(pc.ang) * 0.3)) })
-    if (healing && far < 0.003) pieces.splice(0, pieces.length, fresh()), (planes.length = 0), bound(pieces[0]), (healing = false)
-    u.open.value = Math.min(1, far / 0.04)
+    let far = 0 // ≈ how far the pieces' tips are from home
+    pieces.forEach(pc => { const k = 1 - Math.exp(-dt * (healing ? 2.6 : 6)); pc.off.lerp(pc.to, k), (pc.ang += (pc.angTo - pc.ang) * k), (far = Math.max(far, pc.off.length() + Math.abs(pc.ang) * 0.9)) })
+    if (healing && far < 0.002) pieces.splice(0, pieces.length, fresh()), (planes.length = 0), bound(pieces[0]), (healing = false)
+    u.open.value = THREE.MathUtils.clamp((far - 0.004) / 0.12, 0, 1)  // fades as the pieces come home, reaching 0 before they fuse
+    u.cutW.value = healing ? THREE.MathUtils.clamp((far - 0.002) / 0.008, 0, 1) : 1 // the outline's breaks melt only in the last hundredth, where overlap can't show
+    u.cutI.value = healing ? THREE.MathUtils.clamp((far - 0.002) / 0.1, 0, 1) : 1   // inside, light learns to cross the breaks over the whole return
+    u.disp.value = pieces.length > 1 ? 0 : Math.min(1, u.disp.value + dt * 1.5)  // colour fringing returns gently once whole
     for (let i = 0; i < NP; i++) {
       const pc = pieces[i]
       if (!pc) { u.po.value[i].w = 0; continue }
