@@ -4,7 +4,7 @@ import { go, THREE, U, R, TAU, pointer } from '../lib/stage.js'
 // weighted ropes trailing every stroke, marine snow drifting past.
 // move: a current that pushes them · click: a flash of bioluminescence, every bell contracts at once
 go('medusa', ({ scene, camera }) => {
-  const LOOP = 18, NT = 18, NA = 4, SEG = 26, J = [
+  const LOOP = 18, NT = 18, NA = 4, NH = 48, SEG = 26, J = [
     { x: -1.35, y: 0.55, z: -0.6, r: 0.5, beat: 6, ph: 0.0 },
     { x: 1.2, y: 0.1, z: 0.3, r: 0.62, beat: 5, ph: 0.37 },
     { x: 0.05, y: -0.95, z: -1.4, r: 0.42, beat: 7, ph: 0.71 },
@@ -43,9 +43,9 @@ go('medusa', ({ scene, camera }) => {
   // ── tentacles and oral arms: verlet ropes hanging from the rim, dragged by the water and the current ──
   const ropes = []
   J.forEach((j, ji) => {
-    for (let k = 0; k < NT + NA; k++) {
-      const arm = k >= NT, a = arm ? ((k - NT) / NA) * TAU + 0.4 : (k / NT) * TAU, len = (arm ? 1.6 : R(1.4, 2.6)) * j.r * 1.6
-      ropes.push({ ji, a, arm, seg: len / SEG, p: Array.from({ length: SEG }, (_, s) => new THREE.Vector3(j.x, j.y - s * 0.05, j.z)), q: null })
+    for (let k = 0; k < NT + NA + NH; k++) { // tentacles, oral arms, and a fringe of fine hairs
+      const arm = k >= NT && k < NT + NA, hair = k >= NT + NA, a = arm ? ((k - NT) / NA) * TAU + 0.4 : hair ? R(TAU) : (k / NT) * TAU, len = (arm ? 1.6 : hair ? R(0.7, 2.3) : R(1.4, 2.6)) * j.r * 1.6
+      ropes.push({ ji, a, arm, hair, ph: R(TAU), sp: R(2.5, 5), seg: len / SEG, p: Array.from({ length: SEG }, (_, s) => new THREE.Vector3(j.x, j.y - s * 0.05, j.z)), q: null })
     }
   })
   ropes.forEach(r => (r.q = r.p.map(v => v.clone())))
@@ -82,11 +82,12 @@ go('medusa', ({ scene, camera }) => {
       b.m.updateMatrixWorld(), (j.s = s)
     })
 
+    const fa = t - flashAt, wave = g => (fa < 1.05 || fa > 3.6 ? 0 : Math.exp(-(((g - (fa - 1.15) / 1.5) * 7) ** 2)) * (1 - g * 0.4) * Math.min(1, (fa - 1.05) * 6)) // the flash reaches the rim at ~1.2s, then carries on down every strand
     // ropes: pin the top to the (squeezing) rim, verlet the rest with drag, sink and the current, then relax lengths
     let o = 0
     ropes.forEach(r => {
       const j = J[r.ji], b = bells[r.ji].m, rr = r.arm ? 0.25 : 1 - j.s * 0.28 * 0.9
-      anchor.set(Math.cos(r.a) * rr * 0.9, r.arm ? 0.05 : 0.02 - 0.1, Math.sin(r.a) * rr * 0.9).applyMatrix4(b.matrixWorld)
+      anchor.set(Math.cos(r.a) * rr * (r.hair ? 0.84 : 0.9), r.arm ? 0.05 : r.hair ? -0.05 : 0.02 - 0.1, Math.sin(r.a) * rr * (r.hair ? 0.84 : 0.9)).applyMatrix4(b.matrixWorld)
       r.p[0].copy(anchor)
       for (let s = 1; s < SEG; s++) {
         const v = r.p[s], w = r.q[s], vx = (v.x - w.x) * 0.9, vy = (v.y - w.y) * 0.9, vz = (v.z - w.z) * 0.9
@@ -99,7 +100,8 @@ go('medusa', ({ scene, camera }) => {
         if (s > 1) a.addScaledVector(d, k * 0.5), c.addScaledVector(d, -k * 0.5); else c.addScaledVector(d, -k)
       }
       for (let s = 0; s < SEG - 1; s++) {
-        const a = r.p[s], c = r.p[s + 1], g = s / (SEG - 1), br = (r.arm ? 0.2 : 0.11) * (1 - g * 0.7) + bells[r.ji].u.flash.value * 0.25 * (1 - g)
+        const a = r.p[s], c = r.p[s + 1], g = s / (SEG - 1), pulse = Math.max(0, Math.sin(g * 14 - now * r.sp + r.ph)) ** 10 * (1 - g * 0.6) // faint light running down each strand
+        const br = (r.arm ? 0.2 : r.hair ? 0.04 : 0.11) * (1 - g * 0.7) + bells[r.ji].u.flash.value * 0.25 * (1 - g) + pulse * (r.hair ? 0.16 : 0.12) + wave(g) * (r.hair ? 0.3 : 0.28)
         lp.set([a.x, a.y, a.z, c.x, c.y, c.z], o * 6)
         const col = [U.ink.value.r * br, U.ink.value.g * br * 0.92, U.ink.value.b * br * 0.85] // bone, warming towards the tips
         lc.set([...col, col[0] * (1 + g * 0.6), col[1] * (1 - g * 0.3), col[2] * (1 - g * 0.5)], o * 6), o++

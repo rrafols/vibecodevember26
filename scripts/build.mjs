@@ -38,10 +38,11 @@ const write = async r => {
     writeFileSync(`docs/${d}.html`, html)
     console.log(`  docs/${d}.html  ${kb(f.text.length)} → ${kb(html.length)}`)
   }
-  // the gallery fits the screen: try every column count, keep the one with the biggest square tiles (ties go to 6 per row)
-  const fit = `const g=document.querySelector('.grid'),h=g.querySelector('h1'),n=g.querySelectorAll('a').length,px=v=>parseFloat(v)||0,f=()=>{const s=getComputedStyle(g),W=g.clientWidth-px(s.paddingLeft)-px(s.paddingRight),H=g.clientHeight-px(s.paddingTop)-px(s.paddingBottom)-h.offsetHeight-px(getComputedStyle(h).marginBottom)-2;let b=[0,6];for(let c=1;c<=n;c++){const r=Math.ceil(n/c),t=Math.min((W-(c-1)*2)/c,(H-(r-1)*2)/r);if(t>b[0]+.5||(Math.abs(t-b[0])<=.5&&Math.abs(c-6)<Math.abs(b[1]-6)))b=[t,c]}g.style.setProperty('--c',b[1]),g.style.setProperty('--s',Math.floor(b[0])+'px')};f(),addEventListener('resize',f)`
+  const LAST = 30, have = new Set(days()), pending = Array.from({ length: LAST }, (_, i) => String(i + 1).padStart(2, '0')).filter(d => !have.has(d)) // days still to come, shown as empty boxes
+  // the gallery fits the screen: try every column count, keep the one with the biggest square tiles; 6 per row whenever that is nearly as big
+  const fit = `const g=document.querySelector('.grid'),h=g.querySelector('h1'),n=g.querySelectorAll('a,.pending').length,px=v=>parseFloat(v)||0,f=()=>{const s=getComputedStyle(g),W=g.clientWidth-px(s.paddingLeft)-px(s.paddingRight),H=g.clientHeight-px(s.paddingTop)-px(s.paddingBottom)-h.offsetHeight-px(getComputedStyle(h).marginBottom)-2;let b=[0,6],six=0;for(let c=1;c<=n;c++){const r=Math.ceil(n/c),t=Math.min((W-(c-1)*2)/c,(H-(r-1)*2)/r);if(c===6)six=t;if(t>b[0]+.5||(Math.abs(t-b[0])<=.5&&Math.abs(c-6)<Math.abs(b[1]-6)))b=[t,c]}if(six>=b[0]*.8)b=[six,6];g.style.setProperty('--c',b[1]),g.style.setProperty('--s',Math.floor(b[0])+'px')};f(),addEventListener('resize',f)`
   writeFileSync('docs/index.html', page('vibecodevember ’26', `<body><main class=grid><h1>vibecodevember ’26</h1>${days().filter(d => !draft(d)).map(d =>
-    `<a href="${d}.html"><video src="videos/${d}.mp4" poster="videos/${d}.jpg" muted loop playsinline autoplay onerror="this.remove()"></video><b>${d}</b></a>`).join('')}</main><script>${fit}</script>`))
+    `<a href="${d}.html"><video src="videos/${d}.mp4" poster="videos/${d}.jpg" muted loop playsinline autoplay onerror="this.remove()"></video><b>${d}</b></a>`).join('')}${pending.map(d => `<div class=pending><b>${d}</b><i>pending</i></div>`).join('')}</main><script>${fit}</script>`))
   console.log(`✓ ${r.outputFiles.length} days → docs/   ${pathToFileURL('docs/index.html')}`)
 }
 
