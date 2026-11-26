@@ -1,7 +1,7 @@
 // Records the self-contained docs/NN.html. Frame-exact capture: steps the scene at a fixed timestep (no dropped frames), pipes PNGs to ffmpeg.
 //   npm run publish                → today's day
 //   npm run publish -- 3 7         → days 03 and 07
-//   options: --size 1080x1920  --fps 60  --seconds 20  (default: exactly one loop → seamless)  --crf 22
+//   options: --size 1080x1920  --fps 60  --seconds 20  (default: exactly one loop → seamless)  --crf 22  --poster (only redo the still)
 // A day with { blend: s } (stateful sims) is rendered s seconds past the loop and its tail crossfaded into its head → still seamless.
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
@@ -13,7 +13,7 @@ import ffmpeg from 'ffmpeg-static'
 
 const { values: o, positionals } = parseArgs({
   allowPositionals: true,
-  options: { size: { type: 'string', default: '1080x1080' }, fps: { type: 'string', default: '60' }, seconds: { type: 'string' }, crf: { type: 'string', default: '22' } },
+  options: { size: { type: 'string', default: '1080x1080' }, fps: { type: 'string', default: '60' }, seconds: { type: 'string' }, crf: { type: 'string', default: '22' }, poster: { type: 'boolean', default: false } },
 })
 const [W, H] = o.size.split('x').map(Number), fps = +o.fps
 const days = (positionals.length ? positionals : [new Date().getDate()]).map(d => String(d).padStart(2, '0'))
@@ -39,8 +39,14 @@ for (const d of days) {
   await page.goto(`${pathToFileURL(`docs/${d}.html`)}?record`)
   await page.waitForFunction('window.__ready', { timeout: 60000 })
 
-  const [loop, blend] = await page.evaluate('[window.__loop, window.__blend]')
+  const [loop, blend, poster] = await page.evaluate('[window.__loop, window.__blend, window.__poster]')
   const L = Math.round((o.seconds ? +o.seconds : loop) * fps), B = Math.min(Math.round(blend * fps), L >> 1), n = L + B
+  const still = Math.min(n - 1, Math.round(poster * L))
+  if (o.poster) { // stateful days still need every frame up to the still
+    for (let i = 0; i <= still; i++) await page.evaluate(t => window.__frame(t), i / fps)
+    await shot(page, { type: 'jpeg', quality: 88, path: `docs/videos/${d}.jpg` }), console.log(`✓ docs/videos/${d}.jpg  at ${(still / fps).toFixed(2)}s`), await page.close()
+    continue
+  }
   const out = `docs/videos/${d}.mp4`
   // body = frames B..L, then the tail (L..L+B) fading into the head (0..B): ends exactly where the body starts
   const xfade = B ? ['-filter_complex', `[0:v]split=3[a][b][c];[a]trim=start_frame=${B}:end_frame=${L},setpts=PTS-STARTPTS[body];[b]trim=start_frame=${L},setpts=PTS-STARTPTS[tail];` +
@@ -53,7 +59,7 @@ for (const d of days) {
     await page.evaluate(t => window.__frame(t), i / fps)
     const png = await shot(page, { type: 'png', optimizeForSpeed: true })
     if (!ff.stdin.write(png)) await once(ff.stdin, 'drain')
-    if (i === n >> 1) await shot(page, { type: 'jpeg', quality: 88, path: `docs/videos/${d}.jpg` })
+    if (i === still) await shot(page, { type: 'jpeg', quality: 88, path: `docs/videos/${d}.jpg` })
     process.stdout.write(`\r  ${d}  ${'█'.repeat((20 * (i + 1) / n) | 0).padEnd(20, '·')}  ${i + 1}/${n}`)
   }
   ff.stdin.end(), await once(ff, 'close')

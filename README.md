@@ -22,11 +22,17 @@ Every entry builds to **one self-contained HTML file**, with three.js, shaders, 
 | [<img src="docs/videos/10.jpg" width="220">](docs/videos/10.mp4) | **10 — phase space**<br>Four strange attractors (Lorenz, Thomas, Aizawa, Halvorsen) traced by 410k particles on the GPU, their equations blended so the cloud flows from one sculpture into the next. | hover: blast particles off the attractor · click: morph to the next · drag: turn · scroll: slow or speed time |
 | [<img src="docs/videos/11.jpg" width="220">](docs/videos/11.mp4) | **11 — meander**<br>Differential growth: a closed line that keeps growing but can never cross itself, folding into a coral labyrinth. | click: plant a seed · drag: carve a channel |
 | [<img src="docs/videos/12.jpg" width="220">](docs/videos/12.mp4) | **12 — incense**<br>Raymarched smoke rising from an ember: a laminar thread breaking into curls, self-shadowed, lit from below and behind. | move: waft it, sideways motion stirs curls · hold and move: breathe on it · tap: puff a smoke ring |
-| [<img src="docs/videos/13.jpg" width="220">](docs/videos/13.mp4) | **13 — collision**<br>Two spiral galaxies, 262k stars on the GPU, pass through each other, throw out tidal tails and merge. | hover: your cursor is a mass, stars stream towards it · hold: it grows heavy and tears the galaxies apart · double-click: a fresh collision · shift/right-drag: orbit · scroll: time |
+| [<img src="docs/videos/13.jpg" width="220">](docs/videos/13.mp4) | **13 — collision**<br>Two voxel spheres, ~4,000 rigid cubes with contact springs, friction and spin, smash into each other; hard hits heat the faces ember to white, then every cube finds its way home. | hover: your cursor is a solid ball · click: fire a slug · drag: orbit · scroll: bullet time |
 | [<img src="docs/videos/14.jpg" width="220">](docs/videos/14.mp4) | **14 — kintsugi**<br>A mended obsidian disc cracks along its gold seams, bursts into 72 shards in slow motion and draws back together. | click: shatter it from there · drag: turn it |
 | [<img src="docs/videos/15.jpg" width="220">](docs/videos/15.mp4) | **15 — grindstone**<br>A steel bar against a spinning wheel: 65k GPU sparks thrown along the rim's tangent arc under gravity, skip across a mirror-black floor and burst into child sparks mid-flight, lighting the wheel as they go. | hover: slide the bar round the wheel · hold: lean on it, hotter and denser · scroll: wheel speed |
 | [<img src="docs/videos/16.jpg" width="220">](docs/videos/16.mp4) | **16 — medusa**<br>Three jellyfish: translucent pulsing bells with ember lights, rope-simulated tentacles, marine snow. | move: a current that pushes them · click: a flash of bioluminescence |
 | [<img src="docs/videos/17.jpg" width="220">](docs/videos/17.mp4) | **17 — relic**<br>A raymarched crystal with an ember heart: reflection, refraction, total internal reflection and a hint of dispersion. | drag: turn it · hover: move the light · click: the heart flares |
+| [<img src="docs/videos/18.jpg" width="220">](docs/videos/18.mp4) | **18 — mercury**<br>Beads of liquid metal on black glass, raymarched: they roll as the dish tilts, swallow each other on contact and shatter when struck; every bead mirrors the studio, the others and the glass. | hover: tilt the dish · click: strike it · hold and drag: run a finger through them |
+| [<img src="docs/videos/19.jpg" width="220">](docs/videos/19.mp4) | **19 — precession**<br>Three chrome spinning tops on black glass, each integrated from the heavy-top equations of motion: they precess and nutate, and the tip of each axis draws its rosette in ember light. | click a top: flick it · hover: blow on them · drag: turn the table · scroll: slow time |
+| [<img src="docs/videos/20.jpg" width="220">](docs/videos/20.mp4) | **20 — domino**<br>700 black dominoes with bone pips in a six-armed spiral on a mirror. Struck at the centre, the fall runs out along every arm with an ember flash at each impact; then they stand back up. | click a domino: topple from there · hover: carry a lamp · drag: turn the table |
+| [<img src="docs/videos/21.jpg" width="220">](docs/videos/21.mp4) | **21 — pendulum**<br>A pendulum wave: twenty chrome balls tuned to swing 16 to 35 times per loop, drifting into waves and back into line. Knocked sideways they collide like a Newton's cradle, then settle back into step. | drag a ball: throw it · hover: sweep your hand through the row · click: strike the bar · scroll: scrub time |
+| [<img src="docs/videos/22.jpg" width="220">](docs/videos/22.mp4) | **22 — rain**<br>A fogged window over a wet city street at night: towers, sodium lamps, traffic, all mirrored in the road. Drops bead, merge and slide down in stick-slip jerks; each one is a lens showing the city sharp and upside down. | move: your warmth clears the fog · hold and drag: wipe the glass · click: a spray of rain |
+| [<img src="docs/videos/23.jpg" width="220">](docs/videos/23.mp4) | **23 — obsidian**<br>A black sea at sunset: 28 waves obeying deep-water dispersion, a path of glitter, and a black glass buoy riding the swell on four-point buoyancy. | hover: move the sun · click: drop a stone · scroll: wind |
 
 Click a thumbnail for its video. To see an entry live, open `docs/NN.html` in a browser after cloning or downloading the repository; `docs/index.html` is a gallery of all entries.
 
@@ -75,6 +81,7 @@ go('title', ({ scene, camera, renderer }) => {
 | `blend` | `0` | Seconds of crossfade the recorder adds at the loop point. Use it for stateful simulations that can't loop on their own (see day 06) |
 | `dpr` | `2` | Maximum pixel ratio when viewed live. Use `1` for heavy raymarched days (04, 08, 12) so they stay smooth on high-density screens |
 | `parallax` | `1` | How much the camera follows the mouse. Use `0` when the cursor is a tool, so what it points at stays put (day 12) |
+| `poster` | `0.5` | Where in the loop the recorder takes the still image, from `0` to `1`. Redo only the still with `node scripts/record.mjs 5 --poster` |
 
 | Export | What it is |
 |---|---|
@@ -111,7 +118,7 @@ That takes an entry from about 760 KB to about 250 KB.
 
 ### Recording
 
-`scripts/record.mjs` opens `docs/NN.html?record` in headless Chrome. In record mode the page doesn't animate in real time. Instead, it exposes `window.__frame(t)`, and the recorder renders each frame at an exact time step, so heavy scenes never drop frames. It captures every frame and pipes it to ffmpeg (H.264, `yuv420p`, `+faststart`). It also saves a poster from the middle frame.
+`scripts/record.mjs` opens `docs/NN.html?record` in headless Chrome. In record mode the page doesn't animate in real time. Instead, it exposes `window.__frame(t)`, and the recorder renders each frame at an exact time step, so heavy scenes never drop frames. It captures every frame and pipes it to ffmpeg (H.264, `yuv420p`, `+faststart`). It also saves a poster image, taken from the middle of the loop unless the day sets `poster`.
 
 Recording options:
 
@@ -121,6 +128,7 @@ Recording options:
 | `--fps` | `60` | Frame rate |
 | `--seconds` | one loop | Duration |
 | `--crf` | `22` | x264 quality. Higher values give smaller files; detailed scenes with grain compress poorly, so 26–28 suits web copies |
+| `--poster` | off | Only redo the poster image (`docs/videos/NN.jpg`), at the day's `poster` point; no video |
 
 Recording has been tested on macOS. The browser flags request Metal for GPU rendering; on other platforms Chrome should fall back to its default backend.
 

@@ -12,11 +12,13 @@ canvas { display: block; position: fixed; inset: 0; opacity: 0; transition: opac
 #label span:first-child { opacity: .5 }
 
 /* gallery */
-.grid { overflow: auto; height: 100%; padding: 8vmin 4vmin; display: grid; gap: 2px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); align-content: start }
+.grid { --c: 6; overflow: auto; height: 100%; padding: 5vmin 4vmin; display: grid; gap: 2px; grid-template-columns: repeat(var(--c), var(--s, minmax(0, 1fr))); justify-content: center; align-content: center }
+@media (max-width: 900px) { .grid { --c: 3 } }
+@media (max-width: 520px) { .grid { --c: 2 } } /* without script; with it, the index picks the columns that fit the screen */
 body:has(.grid) { overflow: auto }
-.grid h1 { grid-column: 1 / -1; font: inherit; opacity: .5; margin-bottom: 4vmin }
-.grid a { position: relative; aspect-ratio: 1; background: #0b0b0e; overflow: hidden }
-.grid video { width: 100%; height: 100%; object-fit: cover; opacity: .7; transition: opacity .6s }
+.grid h1 { grid-column: 1 / -1; font: inherit; opacity: .5; margin-bottom: 2.5vmin }
+.grid a { position: relative; height: 0; padding-bottom: 100%; background: #0b0b0e; overflow: hidden } /* square, whatever the grid does with row heights */
+.grid video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .7; transition: opacity .6s }
 .grid a:hover video { opacity: 1 }
 .grid b { position: absolute; left: 14px; bottom: 12px; font-weight: 400 }
 .grid a:hover b { color: var(--accent) }

@@ -94,4 +94,4 @@ go('kintsugi', ({ scene, camera, renderer }) => {
     if (own && age > 11) own = false
     shardsAt(age)
   }
-}, { loop: 16, eye: [0, 0.6, 6.2], drift: 0.4, bloom: 0.6 })
+}, { loop: 16, eye: [0, 0.6, 6.2], drift: 0.4, bloom: 0.6, poster: 0.225 })

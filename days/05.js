@@ -59,4 +59,4 @@ go('attraction', ({ scene, camera, renderer }) => {
     }
     M[2].set(cur.x, cur.y, cur.z, me * (0.75 + 0.9 * held))
   }
-}, { loop: 14, eye: [0, 0.3, 6.5], bloom: 0.55 })
+}, { loop: 14, eye: [0, 0.3, 6.5], bloom: 0.55, poster: 0.215 })
