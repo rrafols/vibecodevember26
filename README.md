@@ -19,6 +19,14 @@ Every entry builds to **one self-contained HTML file**, with three.js, shaders, 
 | [<img src="docs/videos/07.jpg" width="220">](docs/videos/07.mp4) | **07 — murmuration**<br>32,000 starlings simulated on the GPU, black against a low ember dusk, folding into sheets that thin and thicken as they turn. | move: you are a falcon, the flock parts around you · click: startle it · hold: dive |
 | [<img src="docs/videos/08.jpg" width="220">](docs/videos/08.mp4) | **08 — cathedral**<br>An endless flight down a nave through an infinite Menger sponge: bone stone, deep shadow, ember lights hanging in the haze. | move: look around · click: release a light down the nave · scroll: twist the architecture |
 | [<img src="docs/videos/09.jpg" width="220">](docs/videos/09.mp4) | **09 — lichtenberg**<br>A clear acrylic block. High-voltage discharges tear branching trees of light through it: white-hot, then ember, then a frosted trace. | click the block: fire from there (hold first to charge) · drag: turn it |
+| [<img src="docs/videos/10.jpg" width="220">](docs/videos/10.mp4) | **10 — phase space**<br>Four strange attractors (Lorenz, Thomas, Aizawa, Halvorsen) traced by 410k particles on the GPU, their equations blended so the cloud flows from one sculpture into the next. | hover: blast particles off the attractor · click: morph to the next · drag: turn · scroll: slow or speed time |
+| [<img src="docs/videos/11.jpg" width="220">](docs/videos/11.mp4) | **11 — meander**<br>Differential growth: a closed line that keeps growing but can never cross itself, folding into a coral labyrinth. | click: plant a seed · drag: carve a channel |
+| [<img src="docs/videos/12.jpg" width="220">](docs/videos/12.mp4) | **12 — incense**<br>Raymarched smoke rising from an ember: a laminar thread breaking into curls, self-shadowed, lit from below and behind. | move: waft it, sideways motion stirs curls · hold and move: breathe on it · tap: puff a smoke ring |
+| [<img src="docs/videos/13.jpg" width="220">](docs/videos/13.mp4) | **13 — collision**<br>Two spiral galaxies, 262k stars on the GPU, pass through each other, throw out tidal tails and merge. | hover: your cursor is a mass, stars stream towards it · hold: it grows heavy and tears the galaxies apart · double-click: a fresh collision · shift/right-drag: orbit · scroll: time |
+| [<img src="docs/videos/14.jpg" width="220">](docs/videos/14.mp4) | **14 — kintsugi**<br>A mended obsidian disc cracks along its gold seams, bursts into 72 shards in slow motion and draws back together. | click: shatter it from there · drag: turn it |
+| [<img src="docs/videos/15.jpg" width="220">](docs/videos/15.mp4) | **15 — grindstone**<br>A steel bar against a spinning wheel: 65k GPU sparks thrown along the rim's tangent arc under gravity, skip across a mirror-black floor and burst into child sparks mid-flight, lighting the wheel as they go. | hover: slide the bar round the wheel · hold: lean on it, hotter and denser · scroll: wheel speed |
+| [<img src="docs/videos/16.jpg" width="220">](docs/videos/16.mp4) | **16 — medusa**<br>Three jellyfish: translucent pulsing bells with ember lights, rope-simulated tentacles, marine snow. | move: a current that pushes them · click: a flash of bioluminescence |
+| [<img src="docs/videos/17.jpg" width="220">](docs/videos/17.mp4) | **17 — relic**<br>A raymarched crystal with an ember heart: reflection, refraction, total internal reflection and a hint of dispersion. | drag: turn it · hover: move the light · click: the heart flares |
 
 Click a thumbnail for its video. To see an entry live, open `docs/NN.html` in a browser after cloning or downloading the repository; `docs/index.html` is a gallery of all entries.
 
@@ -65,6 +73,8 @@ go('title', ({ scene, camera, renderer }) => {
 | `bloom` | `0.9` | Bloom strength |
 | `fog` | `0.045` | Exponential fog density |
 | `blend` | `0` | Seconds of crossfade the recorder adds at the loop point. Use it for stateful simulations that can't loop on their own (see day 06) |
+| `dpr` | `2` | Maximum pixel ratio when viewed live. Use `1` for heavy raymarched days (04, 08, 12) so they stay smooth on high-density screens |
+| `parallax` | `1` | How much the camera follows the mouse. Use `0` when the cursor is a tool, so what it points at stays put (day 12) |
 
 | Export | What it is |
 |---|---|

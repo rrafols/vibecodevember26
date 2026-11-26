@@ -225,4 +225,4 @@ go('event horizon', ({ scene, camera }) => {
     star.visible = rays.visible = tu.show.value > 0.01
     if (rays.visible) trace()
   }
-}, { loop: 16, eye: [0, 1.2, 42], drift: 0.6, bloom: 0.4 })
+}, { loop: 16, eye: [0, 1.2, 42], drift: 0.6, bloom: 0.4, dpr: 1 })

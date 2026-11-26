@@ -80,4 +80,4 @@ go('cathedral', ({ scene, camera }) => {
       O[4 + k].set(q.x, q.y, q.z, 1.6 * Math.min(1, age * 4) * Math.min(1, (7 - age) / 2) * THREE.MathUtils.smoothstep(camera.position.distanceTo(q), 0.5, 1.4))
     }
   }
-}, { loop: 30, drift: 0, bloom: 0.7 })
+}, { loop: 30, drift: 0, bloom: 0.7, dpr: 1 })
