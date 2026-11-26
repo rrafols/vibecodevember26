@@ -15,7 +15,7 @@ go('medusa', ({ scene, camera }) => {
   // ── bells: a hemisphere deformed by the pulse, shaded as glowing translucent tissue ──
   const bellGeo = new THREE.SphereGeometry(1, 64, 20, 0, TAU, 0, Math.PI * 0.55)
   const bells = J.map(j => {
-    const u = { ...U, squeeze: { value: 0 }, flash: { value: 0 } }
+    const u = { ...U, squeeze: { value: 0 }, flash: { value: 0 }, front: { value: -9 }, amp: { value: 0 } }
     const m = new THREE.Mesh(bellGeo, new THREE.ShaderMaterial({
       uniforms: u, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
       vertexShader: `uniform float squeeze, time; varying vec3 vN, vW, vP;
@@ -26,13 +26,13 @@ go('medusa', ({ scene, camera }) => {
           vP = position, vN = normalize(normalMatrix * normal), vW = (modelMatrix * vec4(p, 1.)).xyz;
           gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.);
         }`,
-      fragmentShader: `uniform vec3 ink, accent; uniform float flash, time; varying vec3 vN, vW, vP;
+      fragmentShader: `uniform vec3 ink, accent; uniform float flash, time, front, amp; varying vec3 vN, vW, vP;
         void main(){
           float f = pow(1. - abs(dot(normalize(vN), normalize(cameraPosition - vW))), 2.2), down = 1. - vP.y, a = atan(vP.z, vP.x);
           float spots = pow(max(0., cos(a * 8.)), 60.) * smoothstep(.955, .995, down);              // eight lights round the margin
           float gonads = pow(max(0., cos(a * 2.)), 6.) * smoothstep(.15, .35, down) * smoothstep(.6, .4, down); // four soft lobes inside
-          float wave = flash * exp(-pow((down - (1. - flash)) * 4., 2.));                          // the flash runs crown → rim
-          vec3 c = ink * (.004 + .42 * pow(f, 1.8)) + accent * (spots * 2.2 + gonads * .08 + wave * 1.4) + ink * wave * .5; // clear tissue: only its edges catch light
+          float wave = amp * exp(-pow((down - front) * 4., 2.));                                    // one light front: crown → rim → on down the strands
+          vec3 c = ink * (.004 + .42 * pow(f, 1.8)) + accent * (spots * 2.2 + gonads * .08 + wave * .55) + ink * wave * .18; // clear tissue: only its edges catch light
           gl_FragColor = vec4(c, 1.);
         }`,
     }))
@@ -69,7 +69,8 @@ go('medusa', ({ scene, camera }) => {
     let active = false
     if (pointer.active && (ray.setFromCamera(pointer, camera), ray.ray.intersectPlane(plane, cur))) flow.lerp(tmp.subVectors(cur, prevCur).multiplyScalar(30).clampLength(0, 3), 0.15), prevCur.copy(cur), (active = true)
     else flow.multiplyScalar(0.9)
-    const fl = Math.max(0, 1 - (t - flashAt) / 1.2) // the flash travels down the bell over ~1s
+    const fl = Math.max(0, 1 - (t - flashAt) / 1.2) // the squeeze of the flash
+    const fa0 = t - flashAt
 
     J.forEach((j, i) => {
       const f = p * j.beat + j.ph, s = Math.max(pulse(f), fl > 0 ? Math.sin(fl * Math.PI) : 0)
@@ -78,11 +79,13 @@ go('medusa', ({ scene, camera }) => {
       push[i].multiplyScalar(0.96), c.add(push[i])
       const b = bells[i]
       b.m.position.copy(c), b.m.rotation.set(Math.sin(p * TAU + i) * 0.2 + push[i].z * 0.5, 0, -push[i].x * 0.6 + Math.sin(p * TAU * 2 + i) * 0.1)
-      b.u.squeeze.value = s, (b.u.flash.value = fl)
+      b.u.squeeze.value = s, (b.u.flash.value = fl), (b.u.front.value = fa0 / 1.2), (b.u.amp.value = fa0 < 0 ? 0 : Math.min(1, fa0 * 8) * Math.exp(-Math.max(0, fa0 - 0.8) * 0.8))
       b.m.updateMatrixWorld(), (j.s = s)
     })
 
-    const fa = t - flashAt, wave = g => (fa < 1.05 || fa > 3.6 ? 0 : Math.exp(-(((g - (fa - 1.15) / 1.5) * 7) ** 2)) * (1 - g * 0.4) * Math.min(1, (fa - 1.05) * 6)) // the flash reaches the rim at ~1.2s, then carries on down every strand
+    // a click's light is one front moving at one pace: across the bell (0 → 1, crown to rim) and on down the strands (1 → 2.25)
+    const fa = t - flashAt, front = fa / 1.2, amp = fa < 0 ? 0 : Math.min(1, fa * 8) * Math.exp(-Math.max(0, fa - 0.8) * 0.8)
+    const wave = g => (amp < 0.005 ? 0 : amp * Math.exp(-(((1 + g * 1.25 - front) * 4) ** 2)) * (1 - g * 0.35))
     // ropes: pin the top to the (squeezing) rim, verlet the rest with drag, sink and the current, then relax lengths
     let o = 0
     ropes.forEach(r => {
@@ -101,7 +104,7 @@ go('medusa', ({ scene, camera }) => {
       }
       for (let s = 0; s < SEG - 1; s++) {
         const a = r.p[s], c = r.p[s + 1], g = s / (SEG - 1), pulse = Math.max(0, Math.sin(g * 14 - now * r.sp + r.ph)) ** 10 * (1 - g * 0.6) // faint light running down each strand
-        const br = (r.arm ? 0.2 : r.hair ? 0.04 : 0.11) * (1 - g * 0.7) + bells[r.ji].u.flash.value * 0.25 * (1 - g) + pulse * (r.hair ? 0.16 : 0.12) + wave(g) * (r.hair ? 0.3 : 0.28)
+        const br = (r.arm ? 0.2 : r.hair ? 0.04 : 0.11) * (1 - g * 0.7) + pulse * (r.hair ? 0.16 : 0.12) + wave(g) * (r.hair ? 0.45 : 0.4)
         lp.set([a.x, a.y, a.z, c.x, c.y, c.z], o * 6)
         const col = [U.ink.value.r * br, U.ink.value.g * br * 0.92, U.ink.value.b * br * 0.85] // bone, warming towards the tips
         lc.set([...col, col[0] * (1 + g * 0.6), col[1] * (1 - g * 0.3), col[2] * (1 - g * 0.5)], o * 6), o++
