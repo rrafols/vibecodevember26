@@ -66,12 +66,13 @@ go('cathedral', ({ scene, camera }) => {
     u.scale.value += (sc - u.scale.value) * 0.05
     const O = u.orb.value
     auto.forEach((o, k) => { // each auto light keeps its place in the repeating nave, so it scrolls past exactly like the stone does
-      const oz = z + ((((o.z - z) % (BAY * 3)) - BAY * 3) % (BAY * 3)) - 0.3
-      O[k].set(o.x + Math.sin(a * 2 + o.ph) * 0.15, o.y + Math.sin(a + o.ph) * 0.1, oz, o.w * (0.85 + 0.15 * Math.sin(a * 3 + o.ph)))
+      const oz = z + ((((o.z - z) % (BAY * 3)) - BAY * 3) % (BAY * 3)) - 0.3, ahead = z - oz
+      const near = THREE.MathUtils.smoothstep(ahead, 0.3, 2.6) * THREE.MathUtils.smoothstep(-ahead, -12.3, -9.5) // fade out before it reaches us, in at the far end
+      O[k].set(o.x + Math.sin(a * 2 + o.ph) * 0.15, o.y + Math.sin(a + o.ph) * 0.1, oz, o.w * near * (0.85 + 0.15 * Math.sin(a * 3 + o.ph)))
     })
     for (let k = 0; k < 2; k++) {
       const m = mine[k], age = m ? t - m.t : 99
-      m && age < 14 ? O[4 + k].set(m.x, m.y, m.z - age * 0.9, Math.min(1, age * 2) * Math.max(0, 1 - age / 14) * 1.4) : O[4 + k].set(0, 0, 0, 0)
+      m && age < 14 ? O[4 + k].set(m.x, m.y, m.z - age * 0.9, Math.min(1, age * 2) * Math.max(0, 1 - age / 14) * 1.4 * THREE.MathUtils.smoothstep(z - (m.z - age * 0.9), 0.4, 1.6)) : O[4 + k].set(0, 0, 0, 0)
     }
   }
 }, { loop: 20, drift: 0, bloom: 0.7 })
